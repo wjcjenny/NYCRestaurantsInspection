@@ -1,0 +1,381 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js'></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/queue-async/1.0.7/queue.min.js"></script>
+  <script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+<style type="text/css">
+
+       body {
+          background-color: white;
+          font-family: Helvetica, Arial, sans-serif;
+          margin: 50px 100px 50px 100px
+        }
+
+        h1, h2, p {
+          font-family: 'Slabo 27px', serif;
+        }
+
+
+
+        h1 {
+          font-size: 24px;
+          margin: 0;
+          text-align: center;
+        }
+
+        h2 {
+          font-size: 16px;
+          margin: 10px 0 0 0;
+        }
+
+        h4 {
+          font-size: 10px;
+          margin: 0px 0 0 0, sans-serif;
+          text-align: justify;
+        }
+
+        p {
+          font-size: 16px;
+          margin: 10px 0 0 0;
+          text-align: justify;
+        }
+
+        svg {
+          background-color: white;
+        }  
+
+      hr.style-six {
+        border:0;
+        height:0;
+        width:95%;
+        border-top: 1px solid rgba(0,0,0,0.1);
+        border-bottom: 1px solid rgba(255,255,255,0.3);
+
+      }
+      .axis path,
+      .axis line {
+          fill: none;
+          stroke: black;
+          stroke-width: 1px;
+          shape-rendering: crispEdges;
+      }
+
+      .axis text {
+          font-family: sans-serif;
+          font-size: 11px;
+      }
+
+    </style>
+</head>
+
+<body>
+  <center>
+    <div class="container">
+      <h1>New York Restaurant Inspection Result</h1>
+      <br>
+      <div class="intro">
+            <p>AAAAAAAAAAAAAA</p>
+            <p>GRADE:</p>
+            <p>N = Not Yet Graded</p>
+            <p>A = Grade A</p>
+            <p>B = Grade B</p>
+            <p>C = Grade C</p>
+            <p>Z = Grade Pending</p>
+            <p>P= Grade Pending issued on re-opening following an initial inspection that resulted in a closure</p>
+              <br>
+              <br>
+              <h4><em>Graphic By: Jiachuan Wu</em></h4>
+              <h4><em>Source: <a href="https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j">New York OpenData</a></em></h4>
+      </div>
+      <hr class="style-six"></hr>
+      <br>
+      <div id="map"></div>
+      <div id="graph"></div>
+      <br>
+      <div id="line"></div>
+    </div>
+  </center>
+  
+  <script>
+  queue()
+    .defer(d3.json, "nyc-zip-code-tabulation-areas-polygonsgeo.json")
+    .defer(d3.csv, "blah.csv")
+    //final_dataset.csv
+    .await(function(error, nyc_json, restaurant_data) {
+      // Pull the states out of the geojson
+      var nyc = nyc_json['features'];
+      
+      var height = 1000, width = 800;
+
+      /* 
+      
+        DRAWING THE MAP
+      
+      */
+      
+      var map_svg = d3.select("#map")
+                    .append("svg")
+                    .attr('height', height)
+                    .attr('width', width);
+
+      /* Create g layers for each aspect of the map */
+      var map = map_svg.append("g");
+      var nyc_g = map.append("g");
+      var restaurant_g = map.append("g");
+      
+      /* 
+        Since it's a map, create a projection and a path helper
+      */
+      var projection = d3.geo.mercator()
+                            .translate([width / 2,height / 2])
+                            .center([-73.9912, 40.7106])
+                            .scale(70000);
+
+      var path = d3.geo.path().projection(projection);
+
+      /* 
+        Examine the data in the console just so we know
+      */
+      console.log("NYC data looks like");
+      console.log(nyc[0]);
+
+      var tip = d3.tip()
+            // .attr('class', 'd3-tip')
+            .offset([-5, 0])
+            .html(function(d) {
+                return "<strong>" + d['DBA'] + " (" + d['CUISINE DESCRIPTION'] + "): </strong><span style='color:#007cbc'>"+"Grade: "+d['GRADE']+" </span>"+"<br>"+"<strong>"+"Violation: "+"</strong>"+d['VIOLATION DESCRIPTION'];
+            });
+ /* 
+        Draw the states first so they're in the background
+      */
+      nyc_g.selectAll("path")
+              .data(nyc)
+              .enter()
+              .append("path")
+              .attr('d', path)
+              .style('fill', '#e1e1e1')
+              .style('stroke', '#ffffff');
+
+      /* 
+        Examine the data in the console just so we know 
+      */
+      console.log("NYC Result data looks like");
+      console.log(restaurant_data[0]);
+      
+      /* 
+        Draw a circle for every restuarant
+      */
+      restaurant_g.selectAll("circle")
+              .data(restaurant_data)
+              .enter()
+              .append("circle")
+              //.style("fill", "#333333")
+              .style('fill', function(d){
+                if (d['GRADE']=='A') {
+                  return '#377eb8';
+                }
+                if (d['GRADE']=='B') {
+                  return '#e41a1c';
+                }
+                else {
+                  return '#5BB097';
+                }
+              })
+              .style('opacity', 0.7)
+              .attr("r", 0.7)
+              .attr('class', function(d) {
+                return "Cuisine: " + d['DBA'] + " Type-" + d['CUISINE DESCRIPTION'];
+              })
+              .attr("cx", function(d) {
+                var coords = [ +d['mapquest_longitude'], +d['mapquest_latitude'] ];
+                var projected_coords = projection(coords);
+                return projected_coords[0];
+              })
+              .attr("cy", function(d) {
+                var coords = [ +d['mapquest_longitude'], +d['mapquest_latitude'] ];
+                var projected_coords = projection(coords);
+                return projected_coords[1];
+              })
+              .call(tip)
+                    .on('mouseover',function(d) {
+                      info_text = d.DBA;
+                      tip.show(d);
+                      //console.log("yay");
+                      // console.log(datapoints);
+                      d3.select(this)
+                        //.style('fill','#000099')
+                        .style('fill', function(d){
+                          if (d['GRADE']=='A') {
+                            return '#377eb8';
+                          }
+                          if (d['GRADE']=='B') {
+                            return '#e41a1c';
+                          }
+                          else {
+                            return '#5BB097';
+                          }
+                        })
+                        .style('fill-opacity',.1)
+                        .attr('r',3);
+                        //.moveToFront();
+                      d3.select(".infobox")
+                        .text(info_text)
+                        .style('visibility','visible');
+                      d3.select(".label_"+d['key']) //clean!!!
+                        .style('visibility','visible');
+                      })
+                      .call(tip)
+                      .on('mouseout',function(d){
+                        tip.hide(d);
+                        d3.select(this)
+                          .style('fill','grey')
+                          .style('fill-opacity',0.2)
+                          .attr('r',1);
+                        d3.select(".infobox")
+                          .text(" ")
+                          .style('visibility','hidden');
+              });
+
+
+
+
+
+
+      /* 
+
+        DRAWING THE GRAPH
+
+      */
+      
+      var graph_margin = 50,
+          graph_width = 400,
+          graph_height = 200;
+      var graph_svg = d3.select("#map")
+                        .append("svg")
+                        .attr('height', graph_height + graph_margin * 2)
+                        .attr('width', graph_width + graph_margin * 2);
+
+      var graph = graph_svg.append('g').attr("transform", "translate(" + graph_margin + "," + graph_margin + ")");
+      
+      /*
+        Use d3.nest() to group them by year
+        and THEN use .rollup() to make it look like:
+        [
+          { 'key': 1982, 'values': 11 },
+          { 'key': 1984, 'values': 48 },
+          { 'key': 1986, 'values': 21 },
+          { 'key': 1987, 'values': 20 }
+          ....etc
+        ]
+      */
+      // var yearly_data = d3.nest()
+      //                     .key(function(d) { 
+      //                       return d['CUISINE DESCRIPTION'];
+      //                     })
+      //                     .rollup(function(values) { 
+      //                       // values is all of the elements in a group,
+      //                       // so all of the shootings in 2015, all of the shootings in 2014, etc
+      //                       // you use .rollup to summarize them
+      //                       // http://learnjsdata.com/group_data.html
+                            
+      //                       // roll up by number of shootings
+      //                       // return values.length; 
+                            
+      //                       // roll up by summing all the fatalities for that year
+      //                       // return d3.sum(values, function(d) { return d['Fatalities']; });
+                            
+      //                       // roll up by summing together all the victims for that year
+      //                       return d3.sum(values, function(d) { return d['SCORE']; });
+      //                     })
+      //                     .entries(restaurant_data);
+      
+      // console.log("Yearly data looks like this")
+      // console.log(yearly_data[0]);
+      // // Create the scales
+
+      // var xscale = d3.scale.linear().domain([1982,2015]).range([0,graph_width]);
+      // var yscale = d3.scale.linear().domain([0,150]).range([graph_height, 0]);
+
+      // // Draw the axes
+      // var yAxis = d3.svg.axis().scale(yscale).orient("left");
+      // // use .tickFormat(d3.format('d')) to not have commas in years
+      // var xAxis = d3.svg.axis()
+      //                   .scale(xscale)
+      //                   .orient("bottom")
+      //                   .tickFormat(d3.format('d'));
+      
+      
+      // graph.append("g")
+      //     .attr("class", "y-axis axis")
+      //     .call(yAxis);
+
+      // graph.append("g")
+      //     .attr("class", "x-axis axis")
+      //     .attr("transform", "translate(0," + graph_height + ")")
+      //     .call(xAxis);
+      
+    //   /*
+    //      Building lines
+    //   */
+
+    //   // x will be the key (the year)
+    //   // y will be the value (# of shootings)
+    //   // Remember! lines = nested data = d['key'] and d['values']
+    //   var line = d3.svg.line()
+    //               .x(function(d) {
+    //                 return xscale(d['key']);
+    //               })
+    //               .y(function(d) {
+    //                 return yscale(d['values']);
+    //               });
+
+    //   // Putting it inside of its own g
+    //   var lines_area = graph.append('g');
+
+    //   // Remember! Only one line = use .append and .datum
+    //   lines_area.append('path')
+    //         .datum(yearly_data)
+    //         .attr("d", line)
+    //         .style("fill", "none")
+    //         .style("stroke", '#333333');
+
+    //   // Now we draw circles -
+    //   // One circle per data point = use .selectAll
+    //   // Each circle is a year of shootings
+    //   var circles_area = graph.append('g');
+    //   circles_area.selectAll('circle')
+    //               .data(yearly_data)
+    //               .enter()
+    //               .append('circle')
+    //               .attr('r', 5)
+    //               .attr('cx', function(d) {
+    //                 return xscale(d['key']);
+    //               })
+    //               .attr('cy', function(d) {
+    //                 return yscale(d['values']);
+    //               })
+    //               .on("mouseover", function(d) {
+    //                 console.log(d);
+    //                 d3.select(this).style('fill', '#ff0000');
+    //                 console.log("year-" + d['key']);
+    //                 d3.selectAll(".year-" + d['key'])
+    //                     .style('fill', '#ff0000')
+    //                     .transition()
+    //                     .attr('r', function(d) {
+    //                       return Math.sqrt(d['SCORE'] * 5);
+    //                     })
+    //               })
+    //               .on("mouseout", function(d) {
+    //                 console.log(d);
+    //                 d3.select(this).style('fill', '#000000');
+    //                 d3.selectAll(".year-" + d['key'])
+    //                     .transition()
+    //                     .style('fill', '#000000')
+    //                     .attr('r', 3);
+    //               });
+     });
+  </script>
+</body>
+</html>
